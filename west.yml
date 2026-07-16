@@ -1,0 +1,8 @@
+manifest:
+  projects:
+    - name: zephyrproject-rtos
+      url: https://github.com/zephyrproject-rtos/zephyr
+      revision: main
+      path: zephyr/
+      import: true
+

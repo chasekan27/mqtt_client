@@ -1,0 +1,52 @@
+menu "Demo functionalities"
+
+config DEMO_BUILD_TYPE
+    int "Build type"
+    default 1
+    range 1 2
+    help
+        Select build type (1 = non-secure, 2 = secure)
+
+config MOSQUITTO_USERNAME
+	string "Mosquitto cloud username"
+	help
+	  Username of your Mosquitto account.
+
+config MOSQUITTO_PASSWORD
+	string "Mosquitto cloud password"
+	help
+	  Password of your Mosquitto account.
+
+config MOSQUITTO_CLIENT_ID
+	string "Mosquitto cloud IoT hub MQTT client ID"
+	help
+	  Device ID which you have setup in IoT hub account.
+
+config MOSQUITTO_HOSTNAME
+	string "Mosquitto cloud IoT hub hostname"
+	help
+	  Hostname of your Mosquitto cloud IoT hub.
+
+config MOSQUITTO_SERVER_IP
+	string "Mosquitto cloud IoT hub ip address"
+	help
+	  Hostname of your Mosquitto cloud IoT hub.
+
+config MOSQUITTO_SERVER_PORT
+	int "Mosquitto cloud server port number"
+	default 8883
+	help
+	  Mosquitto cloud server port number.
+
+config MOSQUITTO_QOS
+    int "MQTT QoS"
+    default 0
+    range 0 1
+    help
+      Quality of Service to use for publishing and subscribing to topics.
+      Notes:
+        - Use QoS 0 when passing DQP test suite
+        - QoS 2 is not supported by AWS MQTT broker
+endmenu
+
+source "Kconfig.zephyr"
