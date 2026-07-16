@@ -1,0 +1,20 @@
+#include <zephyr/dt-bindings/pinctrl/esp-pinctrl-common.h>
+
+/ {
+	aliases {
+		ambient-temp0 = &temp_sensor;
+	};
+};
+
+&i2c0 {
+	temp_sensor: tmp1075@48 {
+		compatible = "ti,tmp1075";
+		friendly-name = "texas_temperature_tmp1075";
+		reg = <0x48>;
+		conversion-rate = <220000>;
+		lower-threshold = <27>;
+		upper-threshold = <28>;
+		consecutive-fault-measurements = <4>;
+	};
+};
+
