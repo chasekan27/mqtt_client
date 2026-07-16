@@ -1,0 +1,44 @@
+/*
+ * Copyright (c) 2020 Phytec Messtechnik GmbH
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+#include <zephyr/dt-bindings/pinctrl/esp-pinctrl-common.h>
+#include <dt-bindings/pinctrl/esp32c3-pinctrl.h>
+#include <zephyr/dt-bindings/pinctrl/esp32c3-gpio-sigmap.h>
+
+/ {
+    aliases {
+        ambient-temp0 = &temp_sensor;
+        /* Fixes main.c missing watchdog alias requirement */
+        watchdog0 = &wdt0;
+    };
+};
+
+&i2c0 {
+    temp_sensor: tmp1075@48 {
+        compatible = "ti,tmp1075";
+        friendly-name = "texas_temperature_tmp1075";
+        reg = <0x48>;
+        conversion-rate = <220000>;
+        lower-threshold = <27>;
+        upper-threshold = <28>;
+        consecutive-fault-measurements = <4>;
+    };
+};
+
+/* Defines the partition configuration required by LittleFS for storage */
+&flash0 {
+    partitions {
+        compatible = "fixed-partitions";
+        #address-cells = <1>;
+        #size-cells = <1>;
+
+        /* Reserve space for LittleFS storage inside the internal flash area */
+        storage_partition: partition@250000 {
+            label = "storage";
+            reg = <0x00250000 0x000B0000>; /* Adjust start address/size to fit layout if required */
+        };
+    };
+};
