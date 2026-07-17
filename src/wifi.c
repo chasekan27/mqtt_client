@@ -16,8 +16,8 @@
 #include "common.h"
 
 LOG_MODULE_REGISTER(wifi_handler, LOG_LEVEL_DBG);
-#define WIFI_SSID "TP-Link_D689"
-#define WIFI_PASS "12345678"
+#define WIFI_SSID "ZEPHYR"
+#define WIFI_PASS "Tvadivel1."
 static void wifi_reconnect_work_handler(struct k_work *work);
 static struct k_work_delayable wifi_reconnect_work;
 wifi_credentials_t wifi_cred;

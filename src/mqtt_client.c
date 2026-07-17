@@ -1,3 +1,4 @@
+#include "ca_certificate.h"
 #include <errno.h>
 #include <string.h>
 #include <zephyr/logging/log.h>
@@ -33,9 +34,6 @@ static struct sockaddr_storage broker;
 static struct zsock_pollfd fds[1];
 static int nfds;
 
-/* Buffers for MQTT client. */
-static uint8_t rx_buffer[1024];
-static uint8_t tx_buffer[1024];
 
 #define TOPIC_PRE_STR "zephyr_demo/devices/"
 
@@ -234,33 +232,63 @@ static void broker_init(void)
 #endif
 }
 
-static void client_init(struct mqtt_client *client)
-{
 
-    mqtt_client_init(client);
+/* Buffers for MQTT client. */
+static uint8_t rx_buffer[1024];
+static uint8_t tx_buffer[1024];
+
+/*mqtt client context*/
+//static struct mqtt_client client_ctx;
+
+/* mqtt broker address information  */
+static struct sockaddr_storage broker;
+
+
+
+
+
+// 1. PLACE THE NEW DECLARATIONS HERE (at file scope, above the function)
+struct mqtt_sec_config *tls_config = &client_ctx.transport.tls.config;
+
+static sec_tag_t sec_tag_list[] = { CA_CERTIFICATE_TAG };
+
+static struct mqtt_utf8 mqtt_user;
+static struct mqtt_utf8 mqtt_pass;
+#define MQTT_BROKER_HOSTNAME "broker.hivemq.com"
+// 2. THIS IS your client_init function
+static void client_init(struct mqtt_client *client_ctx)
+{
+/* MQTT client configuration */
+client_ctx->broker = &broker;
+client_ctx->evt_cb = mqtt_event_handler;
+client_ctx->client_id.utf8 = (uint8_t *)"zephyr_mqtt_client";
+client_ctx->client_id.size = sizeof("zephyr_mqtt_client") - 1;
+    /* Assign HiveMQ Authentication Credentials from prj.conf */
+    mqtt_user.utf8 = (uint8_t *)CONFIG_MOSQUITTO_USERNAME;
+    mqtt_user.size = strlen(CONFIG_MOSQUITTO_USERNAME);
+    client_ctx->user_name = &mqtt_user;
+    mqtt_pass.utf8 = (uint8_t *)CONFIG_MOSQUITTO_PASSWORD;
+    mqtt_pass.size = strlen(CONFIG_MOSQUITTO_PASSWORD);
+    client_ctx->password = &mqtt_pass;
+    client_ctx->transport.type = MQTT_TRANSPORT_SECURE;
+
+
+client_ctx->protocol_version = MQTT_VERSION_3_1_1;
+
+/* MQTT buffers configuration */
+client_ctx->rx_buf = rx_buffer;
+client_ctx->rx_buf_size = sizeof(rx_buffer);
+client_ctx->tx_buf = tx_buffer;
+client_ctx->tx_buf_size = sizeof(tx_buffer);
+tls_config->peer_verify = TLS_PEER_VERIFY_REQUIRED;
+tls_config->cipher_list = NULL;
+tls_config->sec_tag_list = sec_tag_list;
+tls_config->sec_tag_count = ARRAY_SIZE(sec_tag_list);
+tls_config->hostname = MQTT_BROKER_HOSTNAME;
+    mqtt_client_init(client_ctx);
 
     broker_init();
 
-    /* MQTT client configuration */
-    client->broker = &broker;
-    client->evt_cb = mqtt_event_handler;
-
-    client->client_id.utf8 = (uint8_t *)CONFIG_MOSQUITTO_CLIENT_ID;
-    client->client_id.size = strlen(CONFIG_MOSQUITTO_CLIENT_ID);
-
-    client->password = NULL;
-    client->user_name = NULL;
-    client->keepalive = 60;
-    client->clean_session = 1;
-
-    client->protocol_version = MQTT_VERSION_3_1_1;
-
-    /* MQTT buffers configuration */
-    client->rx_buf = rx_buffer;
-    client->rx_buf_size = sizeof(rx_buffer);
-    client->tx_buf = tx_buffer;
-    client->tx_buf_size = sizeof(tx_buffer);
-    client->transport.type = MQTT_TRANSPORT_NON_SECURE;
 }
 
 static void poll_mqtt(void)
@@ -303,10 +331,12 @@ static int try_to_connect(struct mqtt_client *client)
 
     LOG_DBG("attempting to connect...");
 
+    // 1. Initialize once BEFORE the loop so TLS structures aren't destroyed
+    client_init(client);
+
     while (retries--)
     {
-        client_init(client);
-
+        // 2. Trigger the secure connection handshake
         rc = mqtt_connect(client);
         if (rc)
         {
@@ -346,6 +376,10 @@ static int get_mqtt_broker_addrinfo(void)
 {
     int retries = 3;
     int rc = -EINVAL;
+    char port_str[6];
+
+    // Convert the Kconfig port cleanly into a string structure
+    snprintf(port_str, sizeof(port_str), "%d", CONFIG_MOSQUITTO_SERVER_PORT);
 
     while (retries--)
     {
@@ -353,20 +387,22 @@ static int get_mqtt_broker_addrinfo(void)
         hints.ai_socktype = SOCK_STREAM;
         hints.ai_protocol = 0;
 
-        rc = zsock_getaddrinfo(CONFIG_MOSQUITTO_HOSTNAME, "1883", &hints, &haddr);
+        // Uses the correct TLS port configuration string ("8883")
+        rc = zsock_getaddrinfo(CONFIG_MOSQUITTO_HOSTNAME, port_str, &hints, &haddr);
         if (rc == 0)
         {
-            LOG_INF("DNS resolved for %s:%d", CONFIG_MOSQUITTO_HOSTNAME, CONFIG_MOSQUITTO_SERVER_PORT);
-
+            LOG_INF("DNS resolved for %s:%s", CONFIG_MOSQUITTO_HOSTNAME, port_str);
             return 0;
         }
 
-        LOG_ERR("DNS not resolved for %s:%d, retrying", CONFIG_MOSQUITTO_HOSTNAME, CONFIG_MOSQUITTO_SERVER_PORT);
+        LOG_ERR("DNS not resolved for %s:%s, retrying", CONFIG_MOSQUITTO_HOSTNAME, port_str);
+        k_msleep(1000);
     }
 
     return rc;
 }
 #endif
+
 static void connect_to_cloud_and_publish(void)
 {
     int rc = -EINVAL;

@@ -9,7 +9,8 @@
 #include <zephyr/fs/littlefs.h>
 #include <zephyr/drivers/hwinfo.h>
 #include <stdbool.h>
-
+#include <zephyr/net/tls_credentials.h>
+#include "ca_certificate.h"
 #include "common.h"
 
 #define LOG_LEVEL LOG_LEVEL_DBG
@@ -52,7 +53,21 @@ void print_deviceid()
         printk("Device ID not available on this platform\n");
     }
 }
-
+int register_certificates(void)
+{
+    int err = tls_credential_add(
+        CA_CERTIFICATE_TAG, 
+        TLS_CREDENTIAL_CA_CERTIFICATE, 
+        ca_certificate, 
+        sizeof(ca_certificate)
+    );
+    if (err < 0 && err != -EEXIST) {
+        LOG_ERR("Failed to register certificate: %d", err);
+        return err;
+    }
+    LOG_INF("Certificates registered successfully!");
+    return 0;
+}
 int main(void)
 {
     int ret;
@@ -77,6 +92,8 @@ int main(void)
         LOG_ERR("Error mounting littlefs [%d]", ret);
     }
     init_wifi();
+    // 2. Register the TLS certificates in the secure key database
+    register_certificates();
     start_mqtt_client();
 	LOG_INF("build time: " __DATE__ " " __TIME__);
 
