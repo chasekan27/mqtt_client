@@ -8,3 +8,4 @@ FILE(GLOB app_sources src/*.c)
 target_sources(app PRIVATE
   ${app_sources}
   )
+generate_inc_file_for_target(app src/hivemq_ca.pem ${ZEPHYR_BINARY_DIR}/include/generated/hivemq_ca.pem.inc)

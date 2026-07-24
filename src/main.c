@@ -29,7 +29,24 @@ static struct fs_mount_t littlefs_mnt = {
     .storage_dev = (void *)STORAGE_PARTITION_ID,
     .mnt_point = "/lfs1"
 };
+#include <zephyr/net/tls_credentials.h>
 
+#define TLS_SEC_TAG_LIST_APP 1
+static const unsigned char ca_certificate[] = {
+#include "hivemq_ca.pem.inc"
+ 0x00
+};
+static int setup_tls_credentials(void)
+{
+    int ret = tls_credential_add(TLS_SEC_TAG_LIST_APP,
+                                  TLS_CREDENTIAL_CA_CERTIFICATE,
+                                  ca_certificate,
+                                  sizeof(ca_certificate));
+    if (ret < 0) {
+        LOG_ERR("Failed to register CA certificate: %d", ret);
+    }
+    return ret;
+}
 void print_deviceid()
 {
     uint8_t id[16];   /* buffer for the ID */
@@ -77,6 +94,7 @@ int main(void)
         LOG_ERR("Error mounting littlefs [%d]", ret);
     }
     init_wifi();
+    setup_tls_credentials();
     start_mqtt_client();
 	LOG_INF("build time: " __DATE__ " " __TIME__);
 
