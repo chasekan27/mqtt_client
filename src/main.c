@@ -13,7 +13,7 @@
 #include "common.h"
 
 #define LOG_LEVEL LOG_LEVEL_DBG
-LOG_MODULE_REGISTER(security_demo);
+LOG_MODULE_REGISTER(main);
 
 #ifdef CONFIG_TASK_WDT
 #include <zephyr/task_wdt/task_wdt.h>

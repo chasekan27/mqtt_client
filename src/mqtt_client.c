@@ -16,7 +16,7 @@
 #include "common.h"
 #include "config.h"
 
-LOG_MODULE_REGISTER(iot_mqtt, LOG_LEVEL_DBG);
+LOG_MODULE_REGISTER(mqtt_client, LOG_LEVEL_DBG);
 
 #if defined(CONFIG_MQTT_LIB_TLS)
 /* CA Certificate Tag */
