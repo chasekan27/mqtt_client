@@ -1,16 +1,31 @@
 #include <errno.h>
 #include <string.h>
+#include <stdio.h>
 #include <zephyr/logging/log.h>
 #include <zephyr/kernel.h>
 #include <zephyr/net/mqtt.h>
 #include <zephyr/net/socket.h>
-// #include <zephyr/posix/time.h>
 #include <zephyr/sys/printk.h>
 #include <zephyr/random/random.h>
 #include <zephyr/net/net_if.h>
+
+#if defined(CONFIG_MQTT_LIB_TLS)
+#include <zephyr/net/tls_credentials.h>
+#endif
+
 #include "common.h"
 #include "config.h"
+
 LOG_MODULE_REGISTER(iot_mqtt, LOG_LEVEL_DBG);
+
+#if defined(CONFIG_MQTT_LIB_TLS)
+/* CA Certificate Tag */
+#define TLS_SEC_TAG_LIST_APP 1
+
+static sec_tag_t sec_tag_list[] = {
+    TLS_SEC_TAG_LIST_APP,
+};
+#endif
 
 typedef struct __mqtt_client_ctx
 {
@@ -53,7 +68,11 @@ K_THREAD_STACK_DEFINE(mqtt_client_stack, MQTT_CLIENT_STACK);
 static struct k_thread mqtt_client_thread_data;
 static k_tid_t mqtt_client_tid;
 
-int get_random_temp_data()
+/* Credentials structs (static so references stay valid during connection) */
+static struct mqtt_utf8 username;
+static struct mqtt_utf8 password;
+
+int get_random_temp_data(void)
 {
     int minTemp = 20;
     int maxTemp = 25;
@@ -64,7 +83,6 @@ int get_random_temp_data()
 static int publish(struct mqtt_client *client, enum mqtt_qos qos)
 {
     double temp = 25.5;
-    // read_temperature(&temp);
     char payload[15] = {0};
     snprintf(payload, sizeof(payload), "%f", temp);
     char evt_topic[] = TOPIC_PRE_STR CONFIG_MOSQUITTO_CLIENT_ID "/temperature/data/";
@@ -84,11 +102,6 @@ static int publish(struct mqtt_client *client, enum mqtt_qos qos)
     return mqtt_publish(client, &param);
 }
 
-/* Random time between 10 - 15 seconds
- * If you prefer to have this value more than CONFIG_MQTT_KEEPALIVE,
- * then keep the application connection live by calling mqtt_live()
- * in regular intervals.
- */
 static uint8_t timeout_for_publish(void)
 {
     return (10 + sys_rand8_get() % 5);
@@ -188,10 +201,16 @@ static void mqtt_event_handler(struct mqtt_client *const client, const struct mq
 
 static void prepare_fds(struct mqtt_client *client)
 {
-    if (client->transport.type == MQTT_TRANSPORT_NON_SECURE)
-    {
+#if defined(CONFIG_MQTT_LIB_TLS)
+    if (client->transport.type == MQTT_TRANSPORT_SECURE) {
+        fds[0].fd = client->transport.tls.sock;
+    } else {
         fds[0].fd = client->transport.tcp.sock;
     }
+#else
+    fds[0].fd = client->transport.tcp.sock;
+#endif
+
     fds[0].events = ZSOCK_POLLIN;
     nfds = 1;
 }
@@ -236,7 +255,6 @@ static void broker_init(void)
 
 static void client_init(struct mqtt_client *client)
 {
-
     mqtt_client_init(client);
 
     broker_init();
@@ -248,11 +266,17 @@ static void client_init(struct mqtt_client *client)
     client->client_id.utf8 = (uint8_t *)CONFIG_MOSQUITTO_CLIENT_ID;
     client->client_id.size = strlen(CONFIG_MOSQUITTO_CLIENT_ID);
 
-    client->password = NULL;
-    client->user_name = NULL;
+    /* Attach Username and Password required by HiveMQ */
+    username.utf8 = (uint8_t *)CONFIG_MOSQUITTO_USERNAME;
+    username.size = strlen(CONFIG_MOSQUITTO_USERNAME);
+    client->user_name = &username;
+
+    password.utf8 = (uint8_t *)CONFIG_MOSQUITTO_PASSWORD;
+    password.size = strlen(CONFIG_MOSQUITTO_PASSWORD);
+    client->password = &password;
+
     client->keepalive = 60;
     client->clean_session = 1;
-
     client->protocol_version = MQTT_VERSION_3_1_1;
 
     /* MQTT buffers configuration */
@@ -260,7 +284,18 @@ static void client_init(struct mqtt_client *client)
     client->rx_buf_size = sizeof(rx_buffer);
     client->tx_buf = tx_buffer;
     client->tx_buf_size = sizeof(tx_buffer);
+
+    /* Configure TLS / Non-TLS Transport */
+#if defined(CONFIG_MQTT_LIB_TLS)
+    client->transport.type = MQTT_TRANSPORT_SECURE;
+    client->transport.tls.config.peer_verify = TLS_PEER_VERIFY_OPTIONAL;
+    client->transport.tls.config.cipher_list = NULL;
+    client->transport.tls.config.sec_tag_list = sec_tag_list;
+    client->transport.tls.config.sec_tag_count = ARRAY_SIZE(sec_tag_list);
+    client->transport.tls.config.hostname = CONFIG_MOSQUITTO_HOSTNAME;
+#else
     client->transport.type = MQTT_TRANSPORT_NON_SECURE;
+#endif
 }
 
 static void poll_mqtt(void)
@@ -346,6 +381,9 @@ static int get_mqtt_broker_addrinfo(void)
 {
     int retries = 3;
     int rc = -EINVAL;
+    char port_str[6];
+
+    snprintf(port_str, sizeof(port_str), "%d", CONFIG_MOSQUITTO_SERVER_PORT);
 
     while (retries--)
     {
@@ -353,11 +391,10 @@ static int get_mqtt_broker_addrinfo(void)
         hints.ai_socktype = SOCK_STREAM;
         hints.ai_protocol = 0;
 
-        rc = zsock_getaddrinfo(CONFIG_MOSQUITTO_HOSTNAME, "1883", &hints, &haddr);
+        rc = zsock_getaddrinfo(CONFIG_MOSQUITTO_HOSTNAME, port_str, &hints, &haddr);
         if (rc == 0)
         {
             LOG_INF("DNS resolved for %s:%d", CONFIG_MOSQUITTO_HOSTNAME, CONFIG_MOSQUITTO_SERVER_PORT);
-
             return 0;
         }
 
@@ -367,6 +404,7 @@ static int get_mqtt_broker_addrinfo(void)
     return rc;
 }
 #endif
+
 static void connect_to_cloud_and_publish(void)
 {
     int rc = -EINVAL;
@@ -426,7 +464,7 @@ static void mqtt_client(void *dummy1, void *dummy2, void *dummy3)
     }
 }
 
-int start_mqtt_client()
+int start_mqtt_client(void)
 {
     mqtt_client_tid =
         k_thread_create(&mqtt_client_thread_data, mqtt_client_stack, K_THREAD_STACK_SIZEOF(mqtt_client_stack),
