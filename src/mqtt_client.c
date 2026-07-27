@@ -56,6 +56,8 @@ static uint8_t tx_buffer[1024];
 
 static void clear_fds(void);
 static uint8_t devbound_topic[] = TOPIC_PRE_STR CONFIG_MOSQUITTO_CLIENT_ID "/temperature/config/#";
+//the subscription topic in the hivemqtt webpage is "zephyr_demo/devices/zephyr-123234/temperature/config/temp"
+// use this topic to send message to the esp32 module from the hivemqtt webpage
 static struct mqtt_topic subs_topic;
 static struct mqtt_subscription_list subs_list;
 static struct k_work_delayable pub_message;
