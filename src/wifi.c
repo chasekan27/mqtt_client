@@ -171,12 +171,20 @@ bool check_wifi_status()
 
 void init_wifi(void)
 {
+    /* 1. Initialize the delayable work structure */
     k_work_init_delayable(&wifi_reconnect_work, wifi_reconnect_work_handler);
-    /* Register net_mgmt callback for wifi events */
+
+    /* 2. Prepare the net_mgmt callback structure */
     net_mgmt_init_event_callback(&wifi_mgmt_cb, wifi_mgmt_event_handler, WIFI_SHELL_MGMT_EVENTS);
+
+    /* 3. Register callback with net stack BEFORE triggering actions */
     net_mgmt_add_event_callback(&wifi_mgmt_cb);
 
-    /* Try to connect initially (worker will be used for reconnects) */
+    /* 4. Trigger initial connection attempt (K_NO_WAIT for immediate, or K_SECONDS(n)) */
     k_work_schedule(&wifi_reconnect_work, K_NO_WAIT);
+    LOG_INF("INIT WIFI DONE");
 }
-
+void delayed_wifi_reconnect(void)
+{
+    k_work_schedule(&wifi_reconnect_work, K_SECONDS(5));
+}

@@ -18,3 +18,4 @@ bool check_wifi_status();
 int start_mqtt_client();
 int update_wifi_cred();
 void wifi_disconnect(void);
+void delayed_wifi_reconnect(void);

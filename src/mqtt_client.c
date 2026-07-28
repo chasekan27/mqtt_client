@@ -452,6 +452,7 @@ static void mqtt_client(void *dummy1, void *dummy2, void *dummy3)
             if (false == check_wifi_status())
             {
                 LOG_WRN("WiFi is not connected\n");
+                delayed_wifi_reconnect();
                 break;
             }
             if (mqtt_ctx.mqtt_connected)

@@ -38,10 +38,11 @@ static const unsigned char ca_certificate[] = {
 };
 static int setup_tls_credentials(void)
 {
+    /* Use strlen() + 1 to guarantee exact string size + null terminator */
     int ret = tls_credential_add(TLS_SEC_TAG_LIST_APP,
                                   TLS_CREDENTIAL_CA_CERTIFICATE,
                                   ca_certificate,
-                                  sizeof(ca_certificate));
+                                  strlen(ca_certificate) + 1);
     if (ret < 0) {
         LOG_ERR("Failed to register CA certificate: %d", ret);
     }
@@ -49,25 +50,25 @@ static int setup_tls_credentials(void)
 }
 void print_deviceid()
 {
-    uint8_t id[16];   /* buffer for the ID */
-    ssize_t len;
+    // uint8_t id[16];   /* buffer for the ID */
+    // ssize_t len;
 
-    /* Passing NULL defaults to the "system device" (SoC) */
-    len = hwinfo_get_device_id(id, sizeof(id));
+    // /* Passing NULL defaults to the "system device" (SoC) */
+    // len = hwinfo_get_device_id(id, sizeof(id));
 
-    if (len > 0)
-    {
-        printk("Device ID (len=%d): ", (int)len);
-        for (int i = 0; i < len; i++)
-        {
-            printk("%02x", id[i]);
-        }
-        printk("\n");
-    }
-    else
-    {
-        printk("Device ID not available on this platform\n");
-    }
+    // if (len > 0)
+    // {
+    //     printk("Device ID (len=%d): ", (int)len);
+    //     for (int i = 0; i < len; i++)
+    //     {
+    //         printk("%02x", id[i]);
+    //     }
+    //     printk("\n");
+    // }
+    // else
+    // {
+    //     printk("Device ID not available on this platform\n");
+    // }
 }
 
 int main(void)
@@ -88,7 +89,7 @@ int main(void)
     int task_wdt_id = task_wdt_add(10000U, NULL, NULL);
 #endif
 
-    print_deviceid();
+    // print_deviceid();
     ret = fs_mount(&littlefs_mnt);
     if (ret < 0) {
         LOG_ERR("Error mounting littlefs [%d]", ret);
