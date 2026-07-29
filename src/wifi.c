@@ -15,7 +15,7 @@
 
 #include "common.h"
 
-LOG_MODULE_REGISTER(wifi_handler, LOG_LEVEL_DBG);
+LOG_MODULE_REGISTER(wifi_c, LOG_LEVEL_DBG);
 #define WIFI_SSID "ZEPHYR"
 #define WIFI_PASS "Tvadivel1."
 static void wifi_reconnect_work_handler(struct k_work *work);
@@ -114,13 +114,13 @@ static int wifi_connect_once(void)
 /* Work handler scheduled on disconnect events */
 static void wifi_reconnect_work_handler(struct k_work *work)
 {
-    printk("Wi-Fi reconnect work: attempting reconnect\n");
+    LOG_INF("Wi-Fi reconnect work: attempting reconnect\n");
     /* Try repeatedly until success */
     int r = wifi_connect_once();
     if (r == 0) {
         struct net_if *iface = net_if_get_default();
         if (net_if_is_up(iface)) {
-            printk("Wi-Fi connect requested; interface up\n");
+            LOG_INF("Wi-Fi connect requested; interface up\n");
         }
     }
 }
@@ -137,23 +137,35 @@ void wifi_disconnect(void)
 /* net_mgmt event callback to handle Wi-Fi disconnects */
 static struct net_mgmt_event_callback wifi_mgmt_cb;
 static void wifi_mgmt_event_handler(struct net_mgmt_event_callback *cb,
-                                    uint64_t mgmt_event, struct net_if *iface)
+                                     uint64_t mgmt_event, struct net_if *iface)
 {
-    switch (mgmt_event)
+    switch (mgmt_event) 
     {
-        case NET_EVENT_WIFI_CONNECT_RESULT:
-            printk("Wi-Fi connected\n");
+        case NET_EVENT_WIFI_CONNECT_RESULT: 
+        {
+            const struct wifi_status *status =
+                (const struct wifi_status *)cb->info;
+
+            if (status->status) 
+            {
+                LOG_ERR("Wi-Fi connect failed (status=%d)", status->status);
+                k_work_schedule(&wifi_reconnect_work, K_SECONDS(2));
+            } 
+            else 
+            {
+                LOG_INF("Wi-Fi connected");
+            }
             break;
+        }
         case NET_EVENT_WIFI_DISCONNECT_RESULT:
-            printk("Wi-Fi disconnected (event). Scheduling reconnect.\n");
+            LOG_INF("Wi-Fi disconnected (event). Scheduling reconnect.");
             k_work_schedule(&wifi_reconnect_work, K_SECONDS(2));
             break;
         case NET_EVENT_WIFI_AP_STA_CONNECTED:
-            printk("Station connected\n");
+            LOG_INF("Station connected");
             break;
     }
 }
-
 bool check_wifi_status()
 {
     struct net_if *iface = net_if_get_default();
@@ -182,7 +194,6 @@ void init_wifi(void)
 
     /* 4. Trigger initial connection attempt (K_NO_WAIT for immediate, or K_SECONDS(n)) */
     k_work_schedule(&wifi_reconnect_work, K_NO_WAIT);
-    LOG_INF("INIT WIFI DONE");
 }
 void delayed_wifi_reconnect(void)
 {
