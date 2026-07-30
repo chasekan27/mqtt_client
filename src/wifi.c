@@ -195,7 +195,3 @@ void init_wifi(void)
     /* 4. Trigger initial connection attempt (K_NO_WAIT for immediate, or K_SECONDS(n)) */
     k_work_schedule(&wifi_reconnect_work, K_NO_WAIT);
 }
-void delayed_wifi_reconnect(void)
-{
-    k_work_schedule(&wifi_reconnect_work, K_SECONDS(5));
-}
